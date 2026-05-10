@@ -463,20 +463,43 @@ def find_video_file(
             return result
 
         return None
-    except Exception as e:
-        error_detail = "{}".format(e)
-        if "401" in error_detail or "Unauthorized" in error_detail:
-            error_detail += " — Check WebDAV username/password in addon settings"
-        elif "404" in error_detail or "Not Found" in error_detail:
-            error_detail += (
-                " — WebDAV folder not found, check nzbdav is creating "
-                "/content/ symlinks"
+    except HTTPError as e:
+        if e.code in (401, 403):
+            xbmc.log(
+                "NZB-DAV: WebDAV auth failure (HTTP {}) for '{}' "
+                "— check username/password in addon settings".format(
+                    e.code, folder_path
+                ),
+                xbmc.LOGERROR,
             )
-        elif "Connection" in error_detail or "urlopen" in str(type(e).__name__):
-            error_detail += " — Check WebDAV server is reachable at configured URL"
+        elif e.code == 404:
+            xbmc.log(
+                "NZB-DAV: WebDAV folder not found (HTTP 404) for '{}' "
+                "— check nzbdav is creating /content/ symlinks".format(folder_path),
+                xbmc.LOGWARNING,
+            )
+        elif e.code >= 500:
+            xbmc.log(
+                "NZB-DAV: WebDAV server error (HTTP {}) for '{}'".format(
+                    e.code, folder_path
+                ),
+                xbmc.LOGERROR,
+            )
+        else:
+            xbmc.log(
+                "NZB-DAV: WebDAV unexpected HTTP {} for '{}'".format(
+                    e.code, folder_path
+                ),
+                xbmc.LOGWARNING,
+            )
+        return None
+    except Exception as e:
+        detail = str(e)
+        if "Connection" in detail or "urlopen" in type(e).__name__:
+            detail += " — check WebDAV server is reachable at configured URL"
         xbmc.log(
             "NZB-DAV: Error browsing WebDAV folder '{}': {} ({})".format(
-                folder_path, error_detail, type(e).__name__
+                folder_path, detail, type(e).__name__
             ),
             xbmc.LOGERROR,
         )

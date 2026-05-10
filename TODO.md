@@ -20,11 +20,8 @@ Yes. Only two areas are active right now:
 
 ## Future Bug-Hunt Seeds
 
-- `_retry_original_range` may retry already-written byte boundaries.
 - `HlsProducer.prepare()` may accept a file before ffmpeg has fully flushed it.
 - Force-quit during submit can orphan an nzbdav job.
-- Metadata filters may be too permissive when PTT cannot parse a release title.
-- WebDAV 401/403/5xx handling should stay typed and visible, not collapsed to "not found".
 - Session/window-property races should be reviewed before larger concurrency changes.
 
 ## Backburner

@@ -390,6 +390,12 @@ def parse_title_metadata(title):
         fallback = _fallback_parse(title)
         if fallback.get("resolution") or fallback.get("codec"):
             parsed = fallback
+        elif title:
+            xbmc.log(
+                "NZB-DAV: No quality markers detected for '{}'; "
+                "result will pass quality filters".format(title[:100]),
+                xbmc.LOGDEBUG,
+            )
 
     # The normalization block below assumes PTT returned typed data
     # matching its documented contract: strings for resolution/codec/group/
