@@ -554,8 +554,12 @@ def main():
             if monitor.waitForAbort(5):
                 break
         return
-    _HOME_WINDOW.setProperty(_PROP_PROXY_PORT, str(proxy.port))
+    # Token must be visible before port: get_service_proxy_config() reads
+    # port first and only fetches the token when port is non-zero. Writing
+    # port first creates a narrow window where a reader gets a valid port
+    # but an empty token and the proxy rejects the /prepare with 403.
     _HOME_WINDOW.setProperty(_PROP_PROXY_TOKEN, proxy.prepare_token)
+    _HOME_WINDOW.setProperty(_PROP_PROXY_PORT, str(proxy.port))
 
     # Pass the proxy to the player so stop/end callbacks can tear down
     # active remux ffmpeg processes immediately instead of leaving them
@@ -615,8 +619,10 @@ def main():
                 _HOME_WINDOW.clearProperty(_PROP_PROXY_PORT)
                 _HOME_WINDOW.clearProperty(_PROP_PROXY_TOKEN)
             else:
-                _HOME_WINDOW.setProperty(_PROP_PROXY_PORT, str(proxy.port))
+                # Same token-before-port ordering as startup: readers gate
+                # on port being non-zero, so token must land first.
                 _HOME_WINDOW.setProperty(_PROP_PROXY_TOKEN, proxy.prepare_token)
+                _HOME_WINDOW.setProperty(_PROP_PROXY_PORT, str(proxy.port))
                 # The player holds a reference to the old proxy for
                 # cleanup calls from onPlayBackStopped; point it at the
                 # new one so the next stop() fires on the live proxy.

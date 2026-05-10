@@ -2,7 +2,7 @@
 
 Active backlog only. Completed work, old audit details, rejected designs, and long research notes live in git history.
 
-Last reviewed: 2026-05-05
+Last reviewed: 2026-05-11
 Current addon version in this checkout: 1.0.8
 
 ## Actual TODOs
@@ -20,9 +20,7 @@ Yes. Only two areas are active right now:
 
 ## Future Bug-Hunt Seeds
 
-- `HlsProducer.prepare()` may accept a file before ffmpeg has fully flushed it.
 - Force-quit during submit can orphan an nzbdav job.
-- Session/window-property races should be reviewed before larger concurrency changes.
 
 ## Backburner
 
