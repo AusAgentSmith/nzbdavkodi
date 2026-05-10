@@ -5,6 +5,7 @@
 
 import json
 import os
+import tempfile
 
 import xbmc
 
@@ -109,6 +110,29 @@ def _ensure_parent_dir(path):
         os.makedirs(directory)
 
 
+def _write_json_atomic(path, payload):
+    """Write JSON atomically via a temp file + rename.
+
+    Prevents partial writes from leaving the store in a corrupt state
+    (e.g. if Kodi is killed mid-write). ``os.replace`` is atomic on
+    POSIX (rename(2)) so readers always see either the old or the new
+    complete file, never a half-written one.
+    """
+    _ensure_parent_dir(path)
+    dir_name = os.path.dirname(path) or "."
+    fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+        os.replace(tmp_path, path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
 def load_indexers(path=None):
     path = path or default_indexers_path()
     data = _read_json(path, {}, "NZB-DAV: Failed to read indexers JSON")
@@ -120,13 +144,11 @@ def load_indexers(path=None):
 
 def save_indexers(indexers, path=None):
     path = path or default_indexers_path()
-    _ensure_parent_dir(path)
     payload = {
         "version": STORE_VERSION,
         "indexers": [normalize_indexer(item) for item in indexers],
     }
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
+    _write_json_atomic(path, payload)
 
 
 def _normalize_provider_caps(data):
@@ -154,10 +176,8 @@ def load_provider_caps(path=None):
 
 def save_provider_caps(providers, path=None):
     path = path or default_provider_caps_path()
-    _ensure_parent_dir(path)
     payload = {
         "version": STORE_VERSION,
         "providers": _normalize_provider_caps(providers),
     }
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
+    _write_json_atomic(path, payload)

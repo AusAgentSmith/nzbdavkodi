@@ -78,6 +78,12 @@ _FINGERPRINT_BYTES = 4096
 _MAX_FALLBACKS = 5
 _FALLBACK_MANIFEST_STALL_SPECULATION_SECONDS = 0.05
 _FALLBACK_MANIFEST_OPTIONAL_TAIL_WAIT_SECONDS = 0.1
+# Hard ceiling on the entire streaming manifest-fetch loop. Each manifest
+# fetch uses http_get's default 15s socket timeout, but a TCP connection
+# that stalls after the handshake can block indefinitely. This deadline
+# ensures the fallback selection always returns, even if one or more
+# threads never complete.
+_FALLBACK_MANIFEST_GLOBAL_DEADLINE_SECONDS = 120
 _ALLOWED_STREAM_SCHEMES = frozenset(("http", "https"))
 _METADATA_ONLY_MANIFEST_REASONS = frozenset(("too_large",))
 _ADDON_SETTINGS_SCHEMA = (
@@ -1344,6 +1350,8 @@ def _attach_selection_candidates_streaming(
 
     _fill_candidate_window()
 
+    _global_deadline = time.monotonic() + _FALLBACK_MANIFEST_GLOBAL_DEADLINE_SECONDS
+
     while active[0]:
         try:
             tail_wait = _optional_tail_wait_remaining()
@@ -1356,10 +1364,24 @@ def _attach_selection_candidates_streaming(
                     timeout=_FALLBACK_MANIFEST_STALL_SPECULATION_SECONDS
                 )
             else:
-                kind, index, target = result_queue.get()
+                remaining = _global_deadline - time.monotonic()
+                if remaining <= 0:
+                    xbmc.log(
+                        "NZB-DAV: Fallback manifest global deadline reached; "
+                        "dropping remaining slots",
+                        xbmc.LOGWARNING,
+                    )
+                    break
+                kind, index, target = result_queue.get(timeout=remaining)
         except Empty:
             if _optional_tail_wait_remaining() is not None:
                 return True
+            if time.monotonic() >= _global_deadline:
+                xbmc.log(
+                    "NZB-DAV: Fallback manifest global deadline reached",
+                    xbmc.LOGWARNING,
+                )
+                break
             _start_stall_speculation()
             continue
         active[0] -= 1

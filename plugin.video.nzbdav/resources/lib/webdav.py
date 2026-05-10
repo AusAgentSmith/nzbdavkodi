@@ -5,7 +5,7 @@
 
 import base64
 import threading
-from queue import Queue
+from queue import Empty, Queue
 from urllib.error import HTTPError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
@@ -13,6 +13,7 @@ from urllib.request import Request, urlopen
 import xbmc
 
 _WEBDAV_SUBDIR_SCAN_WORKERS = 4
+_WEBDAV_SUBDIR_SCAN_TIMEOUT = 30
 _VIDEO_FILE_SIZE_HINTS_MAX = 64
 _VIDEO_FILE_SIZE_HINTS = {}
 
@@ -210,7 +211,18 @@ def _find_video_file_in_subdirs(subdirs, depth, visited, settings):
     completed_count = 0
     next_to_return = 0
     while completed_count < len(pending):
-        index, result = result_queue.get()
+        try:
+            index, result = result_queue.get(timeout=_WEBDAV_SUBDIR_SCAN_TIMEOUT)
+        except Empty:
+            xbmc.log(
+                "NZB-DAV: WebDAV subdirectory scan timed out after {}s "
+                "({}/{} subdirs completed); stopping scan".format(
+                    _WEBDAV_SUBDIR_SCAN_TIMEOUT, completed_count, len(pending)
+                ),
+                xbmc.LOGWARNING,
+            )
+            stop_event.set()
+            break
         completed[index] = result
         completed_count += 1
         while next_to_return in completed:

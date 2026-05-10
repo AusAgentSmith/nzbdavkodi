@@ -3,6 +3,7 @@
 
 """NZBHydra2 Newznab API client."""
 
+import threading
 from datetime import datetime, timezone
 from urllib.error import URLError
 from urllib.parse import urlencode, urlparse
@@ -28,6 +29,7 @@ from resources.lib.newznab_caps import fetch_caps
 from resources.lib.search_planner import plan_newznab_search
 
 NEWZNAB_NS = "http://www.newznab.com/DTD/2010/feeds/attributes/"
+_CAPS_REFRESH_LOCK = threading.Lock()
 _HYDRA_REQUEST_ERRORS = (
     AttributeError,
     OSError,
@@ -105,14 +107,19 @@ def _get_hydra_caps_for_search(base_url, api_key):
         return caps, True
     if cache_status == "mismatch":
         return {}, False
-    refreshed_caps, error = refresh_hydra_caps(base_url, api_key)
-    if error:
-        xbmc.log(
-            "NZB-DAV: Hydra caps refresh failed before search: {}".format(error),
-            xbmc.LOGDEBUG,
-        )
-        return {}, False
-    return refreshed_caps, bool(refreshed_caps.get("search_types"))
+    with _CAPS_REFRESH_LOCK:
+        # Re-check under lock: a concurrent search may have refreshed already.
+        caps, cache_status = _hydra_provider_caps(base_url)
+        if cache_status == "current" and caps.get("search_types"):
+            return caps, True
+        refreshed_caps, error = refresh_hydra_caps(base_url, api_key)
+        if error:
+            xbmc.log(
+                "NZB-DAV: Hydra caps refresh failed before search: {}".format(error),
+                xbmc.LOGDEBUG,
+            )
+            return {}, False
+        return refreshed_caps, bool(refreshed_caps.get("search_types"))
 
 
 def _fetch_hydra_xml(request_url, error_prefix):
